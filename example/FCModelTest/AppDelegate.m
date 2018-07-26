@@ -44,8 +44,8 @@
                 @"    name         TEXT NOT NULL DEFAULT '',"
                 @"    colorName    TEXT NOT NULL,"
                 @"    taps         INTEGER NOT NULL DEFAULT 0,"
-                @"    createdTime  INTEGER NOT NULL,"
-                @"    modifiedTime INTEGER NOT NULL"
+                @"    createdTime  INTEGER NULL,"
+                @"    modifiedTime INTEGER NULL"
                 @");"
             ]) failedAt(1);
             if (! [db executeUpdate:@"CREATE UNIQUE INDEX IF NOT EXISTS name ON Person (name);"]) failedAt(2);

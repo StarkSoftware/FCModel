@@ -40,6 +40,7 @@ typedef NS_ENUM(char, FCModelInDatabaseStatus) {
 
 @interface FCModel () {
     FCModelInDatabaseStatus _inDatabaseStatus;
+    NSMutableArray *transacArray;
 }
 @property (nonatomic, copy) NSDictionary *_rowValuesInDatabase;
 + (void)postChangeNotificationWithChangedFields:(NSSet *)changedFields changedObject:(FCModel *)changedObject changeType:(FCModelChangeType)changeType priorFieldValues:(NSDictionary *)priorFieldValues;
@@ -67,10 +68,10 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 - (NSString *)description
 {
     return [NSString stringWithFormat:@"<FCModelFieldInfo {%@ %@, default=%@}>",
-        (_type == FCModelFieldTypeText ? @"text" : (_type == FCModelFieldTypeInteger ? @"integer" : (_type == FCModelFieldTypeDouble ? @"double" : (_type == FCModelFieldTypeBool ? @"bool" : @"other")))),
-        _nullAllowed ? @"NULL" : @"NOT NULL",
-        _defaultValue ? _defaultValue : @"NULL"
-    ];
+            (_type == FCModelFieldTypeText ? @"text" : (_type == FCModelFieldTypeInteger ? @"integer" : (_type == FCModelFieldTypeDouble ? @"double" : (_type == FCModelFieldTypeBool ? @"bool" : @"other")))),
+            _nullAllowed ? @"NULL" : @"NOT NULL",
+            _defaultValue ? _defaultValue : @"NULL"
+            ];
 }
 @end
 
@@ -85,7 +86,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 {
     static NSNumberFormatter *numberFormatter;
     static dispatch_once_t onceToken;
-
+    
     if (! value || value == NSNull.null) return nil;
     
     FCModelFieldInfo *primaryKeyInfo = g_fieldInfo[self][g_primaryKeyFieldName[self]];
@@ -96,7 +97,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
     } else if (! [value isKindOfClass:NSString.class] && primaryKeyInfo.type == FCModelFieldTypeText) {
         value = [value stringValue];
     }
-
+    
     return value;
 }
 
@@ -129,14 +130,14 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
         NSMapTable *classCache = g_instances[self];
         if (! classCache) classCache = g_instances[(id) self] = [NSMapTable strongToWeakObjectsMapTable];
         instance = [classCache objectForKey:primaryKeyValue];
-
+        
         if (! instance) {
             instance = fieldValues ? [[self alloc] initWithFieldValues:fieldValues existsInDatabaseAlready:YES] : [self instanceFromDatabaseWithPrimaryKey:primaryKeyValue];
             if (! instance && create) instance = [[self alloc] initWithFieldValues:@{ g_primaryKeyFieldName[self] : primaryKeyValue } existsInDatabaseAlready:NO];
             if (instance) [classCache setObject:instance forKey:primaryKeyValue];
         }
     });
-
+    
     return instance;
 }
 
@@ -170,7 +171,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
                     id suppliedValue = s.resultDictionary[key];
                     if (suppliedValue) [self setValue:(suppliedValue == NSNull.null ? nil : suppliedValue) forKey:key];
                 }];
-
+                
                 self._rowValuesInDatabase = s.resultDictionary;
             }
             [s close];
@@ -227,7 +228,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 + (void)_executeUpdateQuery:(NSString *)query withVAList:(va_list)va_args arguments:(NSArray *)array_args
 {
     checkForOpenDatabaseFatal(YES);
-
+    
     fcm_onMainThread(^{
         __block NSDictionary *changedFieldsToNotify = nil;
         [g_database inDatabase:^(FMDatabase *db) {
@@ -236,19 +237,19 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
             
             BOOL success = va_args ? [db executeUpdate:[self expandQuery:query] withVAList:va_args] : [db executeUpdate:[self expandQuery:query] withArgumentsInArray:array_args];
             if (! success) [self queryFailedInDatabase:db];
-
+            
             if (mustQueueNotificationsLocally) {
                 g_database.isQueuingNotifications = NO;
                 changedFieldsToNotify = [g_database.enqueuedChangedFieldsByClass copy];
                 [g_database.enqueuedChangedFieldsByClass removeAllObjects];
             }
         }];
-    
+        
         // Send notifications
         if (changedFieldsToNotify) {
             [changedFieldsToNotify enumerateKeysAndObjectsUsingBlock:^(Class class, NSDictionary *changedFields, BOOL *stop) {
                 [NSNotificationCenter.defaultCenter postNotificationName:FCModelWillSendChangeNotification object:class userInfo:@{ FCModelChangedFieldsKey : changedFields }];
-
+                
                 NSMapTable *classCache = g_instances[class];
                 if (classCache) {
                     for (FCModel *m in classCache.objectEnumerator.allObjects) [m reload];
@@ -268,14 +269,14 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
     if (! checkForOpenDatabaseFatal(NO)) return nil;
     NSMutableArray *instances = onlyFirst ? nil : [NSMutableArray array];
     __block FCModel *instance = nil;
-
+    
     fcm_onMainThread(^{
         [g_database inDatabase:^(FMDatabase *db) {
             NSString *pkName = g_primaryKeyFieldName[self];
             NSString *expandedQuery = query ? [self expandQuery:[@"SELECT * FROM \"$T\" WHERE " stringByAppendingString:query]] : [self expandQuery:@"SELECT * FROM \"$T\""];
             FMResultSet *s = va_args ? [db executeQuery:expandedQuery withVAList:va_args] : [db executeQuery:expandedQuery withArgumentsInArray:argsArray];
             if (! s) [self queryFailedInDatabase:db];
-
+            
             while ([s next]) {
                 NSDictionary *rowDictionary = s.resultDictionary;
                 instance = [self instanceWithPrimaryKey:rowDictionary[pkName] databaseRowValues:rowDictionary createIfNonexistent:NO];
@@ -376,7 +377,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 + (NSArray *)_resultDictionariesFromQuery:(NSString *)query withVAList:(va_list)va_args arguments:(NSArray *)arguments
 {
     if (! checkForOpenDatabaseFatal(NO)) return nil;
-
+    
     NSMutableArray *rows = [NSMutableArray array];
     fcm_onMainThread(^{
         [g_database inDatabase:^(FMDatabase *db) {
@@ -394,7 +395,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 + (id)_firstValueFromQuery:(NSString *)query withVAList:(va_list)va_args arguments:(NSArray *)arguments
 {
     if (! checkForOpenDatabaseFatal(NO)) return nil;
-
+    
     __block id firstValue = nil;
     fcm_onMainThread(^{
         [g_database inDatabase:^(FMDatabase *db) {
@@ -423,7 +424,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
                 maxParameterCount = sqlite3_limit(db.sqliteHandle, SQLITE_LIMIT_VARIABLE_NUMBER, -1);
             }];
         }
-
+        
         NSMutableArray *valuesArray = [NSMutableArray arrayWithCapacity:MIN(primaryKeyValues.count, maxParameterCount)];
         NSMutableString *whereClause = [NSMutableString stringWithFormat:@"%@ IN (", g_primaryKeyFieldName[self]];
         NSUInteger whereClauseLength = whereClause.length;
@@ -457,7 +458,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 + (void)queryFailedInDatabase:(FMDatabase *)db
 {
     NSException *exception = [NSException exceptionWithName:FCModelException reason:[NSString stringWithFormat:@"Query failed with SQLite error %d: %@", db.lastErrorCode, db.lastErrorMessage] userInfo:nil];
-
+    
     if (dbErrorHandler) dbErrorHandler(exception, db.lastErrorCode, db.lastErrorMessage);
     else [exception raise];
 }
@@ -474,7 +475,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
         arc4random_stir();
         urandom = ( ((uint64_t) arc4random()) << 32) | (uint64_t) arc4random();
     }
-
+    
     int64_t random = (int64_t) (urandom & 0x7FFFFFFFFFFFFFFF);
     return @(random);
 }
@@ -506,7 +507,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
                 if ([key isEqualToString:g_primaryKeyFieldName[self.class]]) {
                     NSAssert(! existsInDB, @"Primary key not provided to initWithFieldValues:existsInDatabaseAlready:YES");
                     _inDatabaseStatus = FCModelInDatabaseStatusNotYetInserted;
-                
+                    
                     // No supplied value to primary key for a new record. Generate a unique key value.
                     BOOL conflict = NO;
                     int attempts = 0;
@@ -524,7 +525,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
                 }
             }
         }];
-
+        
         self._rowValuesInDatabase = _inDatabaseStatus == FCModelInDatabaseStatusRowExists ? fieldValues : nil;
         [self didInit];
     }
@@ -553,7 +554,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
     
     [g_fieldInfo[self.class] enumerateKeysAndObjectsUsingBlock:^(NSString *fieldName, FCModelFieldInfo *info, BOOL *stop) {
         if ([fieldName isEqualToString:g_primaryKeyFieldName[self.class]]) return;
-
+        
         NSDictionary *rowValuesInDatabase = self._rowValuesInDatabase;
         id oldValue = rowValuesInDatabase && [rowValuesInDatabase isKindOfClass:NSDictionary.class] ? rowValuesInDatabase[fieldName] : nil;
         oldValue = (oldValue == NSNull.null ? nil : oldValue);
@@ -563,7 +564,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
             changes[fieldName] = newValue ?: NSNull.null;
         }
     }];
-
+    
     return [changes copy];
 }
 
@@ -573,14 +574,14 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 {
     checkForOpenDatabaseFatal(YES);
     if (_inDatabaseStatus == FCModelInDatabaseStatusDeleted) [[NSException exceptionWithName:FCModelException reason:@"Cannot save deleted instance" userInfo:nil] raise];
-
+    
     __block BOOL hadChanges = NO;
     __block NSSet *changedFields;
     __block FCModelChangeType changeType = FCModelChangeTypeUnspecified;
     __block NSDictionary *previousRowValuesInDatabase = nil;
     fcm_onMainThread(^{
         [g_database inDatabase:^(FMDatabase *db) {
-        
+            
             NSDictionary *changes = self.unsavedChanges;
             BOOL dirty = changes.count;
             if (! dirty && _inDatabaseStatus == FCModelInDatabaseStatusRowExists) { hadChanges = NO; return; }
@@ -593,7 +594,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
             NSString *pkName = g_primaryKeyFieldName[self.class];
             id primaryKey = self.primaryKey;
             NSAssert1(primaryKey && (primaryKey != NSNull.null), @"Cannot update %@ without primary key value", NSStringFromClass(self.class));
-           
+            
             if (update) {
                 columnNames = [changes allKeys];
                 changedFields = [NSSet setWithArray:columnNames];
@@ -605,49 +606,49 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
                 columnNames = [columnNamesMinusPK allObjects];
                 changeType = FCModelChangeTypeInsert;
             }
-
+            
             // Validate NOT NULL columns
             [g_fieldInfo[self.class] enumerateKeysAndObjectsUsingBlock:^(id key, FCModelFieldInfo *info, BOOL *stop) {
                 if (info.nullAllowed) return;
-            
+                
                 id value = [self valueForKey:key];
                 if (! value || value == NSNull.null) {
                     [[NSException exceptionWithName:FCModelException reason:[NSString stringWithFormat:@"Cannot save NULL to NOT NULL property %@.%@", tableName, key] userInfo:nil] raise];
                 }
             }];
-
+            
             values = [NSMutableArray arrayWithCapacity:columnNames.count];
             [columnNames enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
                 [values addObject:([self valueForKey:obj] ?: NSNull.null)];
             }];
             [values addObject:primaryKey];
-
+            
             NSString *query;
             if (update) {
                 query = [NSString stringWithFormat:
-                    @"UPDATE \"%@\" SET \"%@\"=? WHERE \"%@\"=?",
-                    tableName,
-                    [columnNames componentsJoinedByString:@"\"=?,\""],
-                    pkName
-                ];
+                         @"UPDATE \"%@\" SET \"%@\"=? WHERE \"%@\"=?",
+                         tableName,
+                         [columnNames componentsJoinedByString:@"\"=?,\""],
+                         pkName
+                         ];
             } else {
                 if (columnNames.count > 0) {
                     query = [NSString stringWithFormat:
-                        @"INSERT INTO \"%@\" (\"%@\",\"%@\") VALUES (%@?)",
-                        tableName,
-                        [columnNames componentsJoinedByString:@"\",\""],
-                        pkName,
-                        [@"" stringByPaddingToLength:(columnNames.count * 2) withString:@"?," startingAtIndex:0]
-                    ];
+                             @"INSERT INTO \"%@\" (\"%@\",\"%@\") VALUES (%@?)",
+                             tableName,
+                             [columnNames componentsJoinedByString:@"\",\""],
+                             pkName,
+                             [@"" stringByPaddingToLength:(columnNames.count * 2) withString:@"?," startingAtIndex:0]
+                             ];
                 } else {
                     query = [NSString stringWithFormat:
-                        @"INSERT INTO \"%@\" (\"%@\") VALUES (?)",
-                        tableName,
-                        pkName
-                    ];
+                             @"INSERT INTO \"%@\" (\"%@\") VALUES (?)",
+                             tableName,
+                             pkName
+                             ];
                 }
             }
-
+            
             g_database.isInInternalWrite = YES;
             BOOL success = NO;
             success = [db executeUpdate:query withArgumentsInArray:values];
@@ -661,7 +662,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
             }];
             self._rowValuesInDatabase = newRowValues;
             _inDatabaseStatus = FCModelInDatabaseStatusRowExists;
-
+            
             hadChanges = YES;
         }];
         
@@ -670,11 +671,74 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
     return hadChanges;
 }
 
+- (FCModelTransactionalQuery *)saveInTransaction:(void (^)(void))modificiationsBlock
+{
+    __block FCModelTransactionalQuery *obj = [[FCModelTransactionalQuery alloc] init];
+    fcm_onMainThread(^{
+        if (modificiationsBlock) {
+            modificiationsBlock();
+            obj = [self _saveInTransaction];
+        }
+    });
+    return obj;
+}
+
+- (FCModelTransactionalQuery *)_saveInTransaction
+{
+    FCModelTransactionalQuery *obj = [[FCModelTransactionalQuery alloc] init];
+    
+    __block NSSet *changedFields;
+    __block FCModelChangeType changeType = FCModelChangeTypeUnspecified;
+
+    NSArray *columnNames;
+    NSMutableArray *values;
+    
+    NSString *tableName = [self.class tableName];
+    NSString *pkName = g_primaryKeyFieldName[self.class];
+    id primaryKey = self.primaryKey;
+    NSAssert1(primaryKey && (primaryKey != NSNull.null), @"Cannot update %@ without primary key value", NSStringFromClass(self.class));
+    
+        changedFields = [NSSet setWithArray:self.class.databaseFieldNames];
+        NSMutableSet *columnNamesMinusPK = [[NSSet setWithArray:[g_fieldInfo[self.class] allKeys]] mutableCopy];
+        [columnNamesMinusPK removeObject:pkName];
+        columnNames = [columnNamesMinusPK allObjects];
+        changeType = FCModelChangeTypeInsert;
+   
+    
+    values = [NSMutableArray arrayWithCapacity:columnNames.count];
+    [columnNames enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
+        [values addObject:([self valueForKey:obj] ?: NSNull.null)];
+    }];
+    [values addObject:primaryKey];
+    
+    NSString *query;
+        if (columnNames.count > 0) {
+            query = [NSString stringWithFormat:
+                     @"INSERT INTO \"%@\" (\"%@\",\"%@\") VALUES (%@?)",
+                     tableName,
+                     [columnNames componentsJoinedByString:@"\",\""],
+                     pkName,
+                     [@"" stringByPaddingToLength:(columnNames.count * 2) withString:@"?," startingAtIndex:0]
+                     ];
+        } else {
+            query = [NSString stringWithFormat:
+                     @"INSERT INTO \"%@\" (\"%@\") VALUES (?)",
+                     tableName,
+                     pkName
+                     ];
+        }
+    
+    obj.query = query;
+    obj.args = values;
+    
+    return obj;
+}
+
 - (void)delete
 {
     checkForOpenDatabaseFatal(YES);
     __block id pkValue = nil;
-
+    
     fcm_onMainThread(^{
         [g_database inDatabase:^(FMDatabase *db) {
             if (_inDatabaseStatus == FCModelInDatabaseStatusDeleted) return;
@@ -686,12 +750,12 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
             success = [db executeUpdate:query, [self primaryKey]];
             g_database.isInInternalWrite = NO;
             if (! success) [self.class queryFailedInDatabase:db];
-
+            
             _inDatabaseStatus = FCModelInDatabaseStatusDeleted;
         }];
-    
+        
         [g_instances[self.class] removeObjectForKey:pkValue];
-
+        
         [self.class postChangeNotificationWithChangedFields:nil changedObject:self changeType:FCModelChangeTypeDelete priorFieldValues:nil];
     });
 }
@@ -777,7 +841,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
     
     [g_database inDatabase:^(FMDatabase *db) {
         if (databaseInitializer) databaseInitializer(db);
-
+        
         int startingSchemaVersion = 0;
         FMResultSet *rs = [db executeQuery:@"PRAGMA user_version"];
         if ([rs next]) startingSchemaVersion = [rs intForColumnIndex:0];
@@ -796,8 +860,8 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
         
         // Read schema for field names and primary keys
         FMResultSet *tablesRS = [db executeQuery:
-            @"SELECT DISTINCT tbl_name FROM (SELECT * FROM sqlite_master UNION ALL SELECT * FROM sqlite_temp_master) WHERE type != 'meta' AND name NOT LIKE 'sqlite_%'"
-       ];
+                                 @"SELECT DISTINCT tbl_name FROM (SELECT * FROM sqlite_master UNION ALL SELECT * FROM sqlite_temp_master) WHERE type != 'meta' AND name NOT LIKE 'sqlite_%'"
+                                 ];
         while ([tablesRS next]) {
             NSString *tableName = [tablesRS stringForColumnIndex:0];
             NSString *tableClass = tableName;
@@ -838,7 +902,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
                     if (
                         [typeString hasPrefix:@"T@\""] && [typeString hasSuffix:@"\""] && typeString.length > 4 &&
                         (propertyClassName = [typeString substringWithRange:NSMakeRange(3, typeString.length - 4)])
-                    ) {
+                        ) {
                         propertyClass = NSClassFromString(propertyClassName);
                     } else if ([typeString isEqualToString:@"T@"]) {
                         // Property is defined as "id". It's not technically correct to use NSObject here, but I don't think there's a better option.
@@ -855,7 +919,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
                     primaryKeyColumnCount++;
                     primaryKeyName = fieldName;
                 }
-
+                
                 NSString *fieldType = [columnsRS stringForColumnIndex:2];
                 FCModelFieldInfo *info = [FCModelFieldInfo new];
                 info.propertyClass = propertyClass;
@@ -885,20 +949,20 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
                     info.type = FCModelFieldTypeBool;
                     info.defaultValue = defaultNull ? nil : [NSNumber numberWithBool:[columnsRS boolForColumnIndex:4]];
                 } else if (
-                    [fieldType rangeOfString:@"TEXT" options:NSCaseInsensitiveSearch].location != NSNotFound ||
-                    [fieldType rangeOfString:@"CHAR" options:NSCaseInsensitiveSearch].location != NSNotFound ||
-                    [fieldType rangeOfString:@"CLOB" options:NSCaseInsensitiveSearch].location != NSNotFound
-                ) {
+                           [fieldType rangeOfString:@"TEXT" options:NSCaseInsensitiveSearch].location != NSNotFound ||
+                           [fieldType rangeOfString:@"CHAR" options:NSCaseInsensitiveSearch].location != NSNotFound ||
+                           [fieldType rangeOfString:@"CLOB" options:NSCaseInsensitiveSearch].location != NSNotFound
+                           ) {
                     info.type = FCModelFieldTypeText;
                     info.defaultValue = defaultNull ? nil : [[[columnsRS stringForColumnIndex:4]
-                        stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"'"]]
-                        stringByReplacingOccurrencesOfString:@"''" withString:@"'"
-                    ];
+                                                              stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"'"]]
+                                                             stringByReplacingOccurrencesOfString:@"''" withString:@"'"
+                                                             ];
                 } else if (
-                    [fieldType rangeOfString:@"REAL" options:NSCaseInsensitiveSearch].location != NSNotFound ||
-                    [fieldType rangeOfString:@"FLOA" options:NSCaseInsensitiveSearch].location != NSNotFound ||
-                    [fieldType rangeOfString:@"DOUB" options:NSCaseInsensitiveSearch].location != NSNotFound
-                ) {
+                           [fieldType rangeOfString:@"REAL" options:NSCaseInsensitiveSearch].location != NSNotFound ||
+                           [fieldType rangeOfString:@"FLOA" options:NSCaseInsensitiveSearch].location != NSNotFound ||
+                           [fieldType rangeOfString:@"DOUB" options:NSCaseInsensitiveSearch].location != NSNotFound
+                           ) {
                     info.type = FCModelFieldTypeDouble;
                     info.defaultValue = defaultNull ? nil : [NSNumber numberWithDouble:[columnsRS doubleForColumnIndex:4]];
                 } else {
@@ -908,30 +972,30 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
                 
                 [fields setObject:info forKey:fieldName];
             }
-
+            
             if (primaryKeyColumnCount != 1 ) {
                 [[NSException
-                    exceptionWithName:FCModelException
-                    reason:[NSString stringWithFormat:@"FCModel tables must have a single-column primary key, but %@ has %d.", tableName, primaryKeyColumnCount]
-                    userInfo:nil]
-                raise];
+                  exceptionWithName:FCModelException
+                  reason:[NSString stringWithFormat:@"FCModel tables must have a single-column primary key, but %@ has %d.", tableName, primaryKeyColumnCount]
+                  userInfo:nil]
+                 raise];
             }
             
             id classKey = tableModelClass;
             [mutableFieldInfo setObject:fields forKey:classKey];
             [mutablePrimaryKeyFieldName setObject:primaryKeyName forKey:classKey];
             [columnsRS close];
-
+            
             if (ignoredFieldNames.count) mutableIgnoredFieldNames[tableName] = [ignoredFieldNames copy];
         }
         [tablesRS close];
-    
+        
         g_fieldInfo = [mutableFieldInfo copy];
         g_ignoredFieldNames = [mutableIgnoredFieldNames copy];
-        g_primaryKeyFieldName = [mutablePrimaryKeyFieldName copy];        
-
+        g_primaryKeyFieldName = [mutablePrimaryKeyFieldName copy];
+        
     }];
-
+    
     [g_database startMonitoringForExternalChanges];
 }
 
@@ -942,7 +1006,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
             [g_database close];
             g_database = nil;
         }
-    
+        
         [FCModelCachedObject clearCache];
         [g_instances removeAllObjects];
         g_primaryKeyFieldName = nil;
@@ -973,7 +1037,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 + (void)performTransaction:(BOOL (^)(void))block
 {
     __block NSDictionary *changedFieldsToNotify = nil;
-
+    
     [self inDatabaseSync:^(FMDatabase *db) {
         if (db.inTransaction) [[NSException exceptionWithName:FCModelException reason:@"Cannot nest FCModel transactions" userInfo:nil] raise];
         [db beginTransaction];
@@ -986,7 +1050,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
         g_database.isQueuingNotifications = NO;
         changedFieldsToNotify = [g_database.enqueuedChangedFieldsByClass copy];
         [g_database.enqueuedChangedFieldsByClass removeAllObjects];
-
+        
         // Send notifications
         [changedFieldsToNotify enumerateKeysAndObjectsUsingBlock:^(Class class, NSDictionary *changedFields, BOOL *stop) {
             [NSNotificationCenter.defaultCenter postNotificationName:FCModelWillSendChangeNotification object:class userInfo:@{ FCModelChangedFieldsKey : changedFields }];
@@ -1000,7 +1064,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 + (BOOL)vacuumIfPossible
 {
     if (! checkForOpenDatabaseFatal(NO)) return NO;
-
+    
     __block BOOL success = NO;
     [self inDatabaseSync:^(FMDatabase *db) {
         if (db.inTransaction) return;
@@ -1014,7 +1078,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
 + (void)postChangeNotificationWithChangedFields:(NSSet *)changedFields changedObject:(FCModel *)changedObject changeType:(FCModelChangeType)changeType priorFieldValues:(NSDictionary *)priorFieldValues
 {
     if (! changedFields) changedFields = [NSSet setWithArray:self.class.databaseFieldNames];
-
+    
     if (g_database.isQueuingNotifications) {
         id class = (id) self;
         NSMutableSet *changedFieldsForClass = g_database.enqueuedChangedFieldsByClass[class];
@@ -1023,22 +1087,22 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
     } else {
         // notify immediately
         NSDictionary *userInfo =
-            changedObject ? (
-                changeType == FCModelChangeTypeUpdate && priorFieldValues ?
-                @{
-                    FCModelChangedFieldsKey : changedFields,
-                    FCModelChangeTypeKey : @(changeType),
-                    FCModelInstanceKey : changedObject,
-                    FCModelOldFieldValuesKey : priorFieldValues,
-                } : @{
-                    FCModelChangedFieldsKey : changedFields,
-                    FCModelChangeTypeKey : @(changeType),
-                    FCModelInstanceKey : changedObject,
-                }
-            ) : @{
-                FCModelChangedFieldsKey : changedFields,
-                FCModelChangeTypeKey : @(FCModelChangeTypeUnspecified)
-            }
+        changedObject ? (
+                         changeType == FCModelChangeTypeUpdate && priorFieldValues ?
+                         @{
+                           FCModelChangedFieldsKey : changedFields,
+                           FCModelChangeTypeKey : @(changeType),
+                           FCModelInstanceKey : changedObject,
+                           FCModelOldFieldValuesKey : priorFieldValues,
+                           } : @{
+                                 FCModelChangedFieldsKey : changedFields,
+                                 FCModelChangeTypeKey : @(changeType),
+                                 FCModelInstanceKey : changedObject,
+                                 }
+                         ) : @{
+                               FCModelChangedFieldsKey : changedFields,
+                               FCModelChangeTypeKey : @(FCModelChangeTypeUnspecified)
+                               }
         ;
         [NSNotificationCenter.defaultCenter postNotificationName:FCModelWillSendChangeNotification object:self userInfo:userInfo];
         [NSNotificationCenter.defaultCenter postNotificationName:FCModelChangeNotification object:self userInfo:userInfo];
@@ -1053,7 +1117,7 @@ static inline BOOL checkForOpenDatabaseFatal(BOOL fatal)
             if (classCache) {
                 for (FCModel *m in classCache.objectEnumerator.allObjects) [m reload];
             }
-        
+            
             [modelClass postChangeNotificationWithChangedFields:nil changedObject:nil changeType:FCModelChangeTypeUnspecified priorFieldValues:nil];
         }];
     });

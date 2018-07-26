@@ -14,6 +14,8 @@
 #import "FMDatabase.h"
 #endif
 
+#import "FCModelTransactionalQuery.h"
+
 extern NSString * const FCModelException;
 
 @class FCModelFieldInfo;
@@ -92,6 +94,7 @@ typedef NS_ENUM(NSInteger, FCModelChangeType) {
 - (void)revertUnsavedChangeToFieldName:(NSString *)fieldName;
 - (void)delete;
 
+
 // SELECTs allow optional query placeholders:
 //      $T  - This model's table name
 //      $PK - This model's primary-key field name
@@ -159,6 +162,7 @@ typedef NS_ENUM(NSInteger, FCModelChangeType) {
 //
 - (BOOL)reload;
 - (BOOL)save:(void (^)(void))modificiationsBlock;
+- (FCModelTransactionalQuery *)saveInTransaction:(void (^)(void))modificiationsBlock;
 
 // Notification shortcuts: call on an FCModel subclass to be notified for only changes to certain fields
 + (void)addObserver:(id)target selector:(SEL)action forChangedFields:(NSSet *)fieldNamesToWatch;
@@ -233,6 +237,7 @@ typedef NS_ENUM(NSInteger, FCModelFieldType) {
 @property (nonatomic, readonly) Class propertyClass;
 @property (nonatomic, readonly) NSString *propertyTypeEncoding;
 @end
+
 
 
 // Utility function used throughout FCModel:

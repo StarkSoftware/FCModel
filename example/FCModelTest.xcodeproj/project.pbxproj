@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		49B84BD219A5D8850070B159 /* libsqlite3.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = A9EEFB1A17E4D2830066C5EA /* libsqlite3.dylib */; };
+		672AEC00210A0ACE008E4027 /* FCModelTransactionalQuery.m in Sources */ = {isa = PBXBuildFile; fileRef = 672AEBFF210A0ACE008E4027 /* FCModelTransactionalQuery.m */; };
 		9230D6FB17F32EF1000C9C87 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9230D6FA17F32EF1000C9C87 /* XCTest.framework */; };
 		9230D6FC17F32EF1000C9C87 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A9EEFAC217E4C8EE0066C5EA /* Foundation.framework */; };
 		9230D6FD17F32EF1000C9C87 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A9EEFAC617E4C8EE0066C5EA /* UIKit.framework */; };
@@ -53,6 +54,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		672AEBFE210A0ACE008E4027 /* FCModelTransactionalQuery.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FCModelTransactionalQuery.h; sourceTree = "<group>"; };
+		672AEBFF210A0ACE008E4027 /* FCModelTransactionalQuery.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FCModelTransactionalQuery.m; sourceTree = "<group>"; };
 		9230D6F917F32EF1000C9C87 /* FCModelTest Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "FCModelTest Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		9230D6FA17F32EF1000C9C87 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		9230D70017F32EF1000C9C87 /* FCModelTest Tests-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "FCModelTest Tests-Info.plist"; sourceTree = "<group>"; };
@@ -234,6 +237,8 @@
 				A924EA2E18D0EC94000C28BD /* FCModelCachedObject.m */,
 				A97C89A91B4F2447009019F6 /* FCModelNotificationCenter.h */,
 				A97C89AA1B4F2447009019F6 /* FCModelNotificationCenter.m */,
+				672AEBFE210A0ACE008E4027 /* FCModelTransactionalQuery.h */,
+				672AEBFF210A0ACE008E4027 /* FCModelTransactionalQuery.m */,
 			);
 			name = FCModel;
 			path = ../../FCModel;
@@ -387,6 +392,7 @@
 				A9EEFB1917E4D0010066C5EA /* PersonCell.m in Sources */,
 				A99B9B2218B316DC00D79C6A /* FMDatabaseAdditions.m in Sources */,
 				A99BF34F1B50B14100C4559A /* FCModelDatabase.m in Sources */,
+				672AEC00210A0ACE008E4027 /* FCModelTransactionalQuery.m in Sources */,
 				A9EEFB1E17E4DCC00066C5EA /* Person.m in Sources */,
 				A9EEFB1217E4CB870066C5EA /* FMResultSet.m in Sources */,
 				A9EEFACF17E4C8EE0066C5EA /* main.m in Sources */,

@@ -7,6 +7,7 @@
 //
 
 #import <UIKit/UIKit.h>
+#import "RandomThings.h"
 
 @interface ViewController : UIViewController <UICollectionViewDataSource, UICollectionViewDelegate, UITextFieldDelegate>
 @property (nonatomic) IBOutlet UICollectionView *collectionView;

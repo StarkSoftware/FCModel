@@ -10,6 +10,9 @@
 #import "PersonCell.h"
 #import "Person.h"
 
+#import "FMDatabase.h"
+#import "FMDatabaseQueue.h"
+
 @interface ViewController ()
 @property (nonatomic, copy) NSArray *people;
 @end
@@ -21,11 +24,41 @@
 - (void)viewDidLoad
 {
     [super viewDidLoad];
-    UINib *cellNib = [UINib nibWithNibName:@"PersonCell" bundle:nil];
-    [self.collectionView registerNib:cellNib forCellWithReuseIdentifier:@"PersonCell"];
+    [self clearDB];
+    //UINib *cellNib = [UINib nibWithNibName:@"PersonCell" bundle:nil];
+    //[self.collectionView registerNib:cellNib forCellWithReuseIdentifier:@"PersonCell"];
     
-    [self reloadPeople:nil];
-    [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(reloadPeople:) name:FCModelChangeNotification object:Person.class];
+    //[self reloadPeople:nil];
+    //[NSNotificationCenter.defaultCenter addObserver:self selector:@selector(reloadPeople:) name:FCModelChangeNotification object:Person.class];
+}
+
+-(void) clearDB
+{
+    [Person executeUpdateQuery:@"DELETE FROM $T"];
+    
+    FMDatabaseQueue *queue = [FMDatabaseQueue databaseQueueWithPath:[[NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0] stringByAppendingPathComponent:@"testDB.sqlite3"]];
+    
+    [queue inDatabase:^(FMDatabase *db) {
+        for (int i = 0; i < 3000; i++) {
+            NSLog(@"ROW --> %d", i);
+            Person *p = [Person new];
+            
+            FCModelTransactionalQuery *tt = [p saveInTransaction:^{
+                p.name = [NSString stringWithFormat:@"%d ,%@", i, [RandomThings randomName]];
+                p.colorName = @"FF3838";
+            }];
+            
+            [db executeUpdate:tt.query withArgumentsInArray:tt.args];
+            
+            NSLog(@"RES");
+            /*
+            NSLog(@"ROW --> %@", [p saveInTransaction:^{
+             
+            }]);
+             */
+        }
+    }];
+    
 }
 
 - (void)reloadPeople:(NSNotification *)notification
@@ -44,7 +77,7 @@
 
 - (BOOL)textFieldShouldReturn:(UITextField *)textField
 {
-    [textField resignFirstResponder];    
+    [textField resignFirstResponder];
     [Person executeUpdateQuery:self.queryField.text arguments:nil];
     return NO;
 }
